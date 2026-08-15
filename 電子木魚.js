@@ -16,7 +16,7 @@
 
   const SETTINGS_KEY = 'muyu-user-settings-v2';
   // CC0: "Mokugyo.wav" by jonopodmore, Freesound sound 607215.
-  const woodfishSample = new Audio('woodfish.mp3');
+  const woodfishSample = new Audio('woodfish.mp3?v=1');
   woodfishSample.preload = 'auto';
   const sayings = ['功德無量', '身心自在', '吉祥平安', '一念清淨', '心誠則靈', '福慧雙修', '無憂無懼'];
   const achievements = [['初入佛門', 10], ['一百零八功德圓滿', 108], ['虔誠居士', 500], ['禪修達人', 1000], ['木魚宗師', 10000]];
