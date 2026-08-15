@@ -86,7 +86,7 @@ button,select,input{touch-action:manipulation}
 .appOption{cursor:pointer;transition:.18s}
 .appOption:has(input:checked){background:rgba(255,211,106,.11);border-color:rgba(255,211,106,.28);color:var(--cream)}
 .summary{max-height:min(760px,90vh);overflow:auto}
-@media(min-width:961px){.appPanel{position:sticky;top:18px;align-self:start;max-height:calc(100vh - 36px);overflow:auto}.appPanel::-webkit-scrollbar{width:7px}.appPanel::-webkit-scrollbar-thumb{background:rgba(255,225,145,.22);border-radius:999px}}
+@media(min-width:961px){.layout{align-items:stretch}.stage,.appPanel{height:720px}.appPanel{position:sticky;top:18px;align-self:stretch;overflow:auto}.appPanel::-webkit-scrollbar{width:7px}.appPanel::-webkit-scrollbar-thumb{background:rgba(255,225,145,.22);border-radius:999px}}
 @media(max-width:660px){
   .app{width:min(100%,96vw);padding:12px 0 24px}
   .top{margin-bottom:8px}.logo{width:38px;height:38px;border-radius:12px}h1{font-size:25px}
