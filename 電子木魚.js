@@ -16,8 +16,13 @@
 
   const SETTINGS_KEY = 'muyu-user-settings-v2';
   // CC0: "Mokugyo.wav" by jonopodmore, Freesound sound 607215.
-  const woodfishSample = new Audio('woodfish.mp3?v=1');
-  woodfishSample.preload = 'auto';
+  const isLocalFile = window.location.protocol === 'file:';
+  const localWoodfishSample = isLocalFile ? new Audio('woodfish.mp3') : null;
+  if (localWoodfishSample) localWoodfishSample.preload = 'auto';
+  const woodSampleDataPromise = isLocalFile ? Promise.resolve(null) : fetch('woodfish.mp3?v=1').then((response) => {
+      if (!response.ok) throw new Error('木魚音效載入失敗');
+      return response.arrayBuffer();
+    });
   const sayings = ['功德無量', '身心自在', '吉祥平安', '一念清淨', '心誠則靈', '福慧雙修', '無憂無懼'];
   const achievements = [['初入佛門', 10], ['一百零八功德圓滿', 108], ['虔誠居士', 500], ['禪修達人', 1000], ['木魚宗師', 10000]];
   let running = false;
@@ -40,6 +45,7 @@
   let ambientGain = null;
   let woodSampleBuffer = null;
   let woodSampleLoading = null;
+  let audioPreparing = false;
   let ambientEnabled = false;
   let bellTimer = 0;
   let returnFocus = null;
@@ -171,7 +177,12 @@
 
   function prepareAudio() {
     if (audioContext) return;
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    try {
+      audioContext = new AudioContextClass({ latencyHint: 'interactive' });
+    } catch {
+      audioContext = new AudioContextClass();
+    }
     woodInput = audioContext.createGain();
     ambientInput = audioContext.createGain();
     masterGain = audioContext.createGain();
@@ -196,19 +207,17 @@
     });
     woodInput.connect(woodCompressor).connect(masterGain).connect(woodLimiter).connect(audioContext.destination);
     ambientInput.connect(ambientCompressor).connect(ambientGain).connect(ambientLimiter).connect(audioContext.destination);
-    woodSampleLoading = fetch('woodfish.mp3?v=1')
-      .then((response) => {
-        if (!response.ok) throw new Error('木魚音效載入失敗');
-        return response.arrayBuffer();
-      })
-      .then((data) => audioContext.decodeAudioData(data))
+    woodSampleLoading = isLocalFile ? Promise.resolve() : woodSampleDataPromise
+      .then((data) => audioContext.decodeAudioData(data.slice(0)))
       .then((buffer) => { woodSampleBuffer = buffer; })
-      .catch(() => { woodSampleBuffer = null; });
+      .catch((error) => { woodSampleBuffer = null; throw error; });
   }
 
   function unlockAudio() {
-    if (muted) return;
-    try { prepareAudio(); audioContext.resume(); } catch {}
+    try {
+      prepareAudio();
+      if (!muted) audioContext.resume();
+    } catch {}
   }
 
   function playSound() {
@@ -221,75 +230,32 @@
       soft: { rate: 0.9, level: 0.58 }
     };
     const toneProfile = toneProfiles[ui.tone.value] || toneProfiles.standard;
+    if (isLocalFile && localWoodfishSample) {
+      const sample = localWoodfishSample.cloneNode();
+      sample.preservesPitch = false;
+      sample.mozPreservesPitch = false;
+      sample.webkitPreservesPitch = false;
+      sample.playbackRate = toneProfile.rate;
+      sample.volume = Math.min(1, Number(ui.volume.value || 1) * toneProfile.level);
+      sample.play().catch(() => {});
+      return;
+    }
     if (audioContext && woodSampleBuffer) {
+      const now = audioContext.currentTime;
       const source = audioContext.createBufferSource();
       const sampleGain = audioContext.createGain();
       source.buffer = woodSampleBuffer;
       source.playbackRate.value = toneProfile.rate;
-      sampleGain.gain.value = toneProfile.level;
-      masterGain.gain.setTargetAtTime(Number(ui.volume.value || 1), audioContext.currentTime, 0.004);
+      sampleGain.gain.setValueAtTime(toneProfile.level, now);
+      sampleGain.gain.setValueAtTime(toneProfile.level, now + 0.18);
+      sampleGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+      masterGain.gain.setTargetAtTime(Number(ui.volume.value || 1), now, 0.004);
       source.connect(sampleGain).connect(woodInput);
       // 跳過 MP3 編碼器在檔頭加入的極短靜音，讓觸控與聲音貼齊。
-      source.start(audioContext.currentTime, Math.min(0.025, woodSampleBuffer.duration / 4));
+      source.start(now, Math.min(0.025, woodSampleBuffer.duration / 4));
+      source.stop(now + 0.32);
       return;
     }
-    const sample = woodfishSample.cloneNode();
-    sample.preservesPitch = false;
-    sample.mozPreservesPitch = false;
-    sample.webkitPreservesPitch = false;
-    sample.playbackRate = toneProfile.rate;
-    sample.volume = Math.min(1, Math.max(0, Number(ui.volume.value || 1) * toneProfile.level));
-    sample.play().catch(() => {});
-    return;
-    try {
-      unlockAudio();
-      const now = audioContext.currentTime;
-      const volume = Number(ui.volume.value || 1);
-      const profiles = {
-        standard: { base: 430, decay: 0.105, brightness: 1 },
-        crisp: { base: 540, decay: 0.08, brightness: 1.12 },
-        deep: { base: 335, decay: 0.14, brightness: 0.88 },
-        soft: { base: 395, decay: 0.12, brightness: 0.62 }
-      };
-      const profile = profiles[ui.tone.value] || profiles.standard;
-      masterGain.gain.setTargetAtTime(volume, now, 0.008);
-
-      // 以包布槌的寬頻衝擊激發木製空腔；不使用持續振盪器，避免金屬感。
-      const noiseLength = Math.ceil(audioContext.sampleRate * (profile.decay + 0.035));
-      const noiseBuffer = audioContext.createBuffer(1, noiseLength, audioContext.sampleRate);
-      const noiseData = noiseBuffer.getChannelData(0);
-      let previousNoise = 0;
-      for (let i = 0; i < noiseLength; i += 1) {
-        const whiteNoise = Math.random() * 2 - 1;
-        previousNoise = previousNoise * 0.58 + whiteNoise * 0.42;
-        const seconds = i / audioContext.sampleRate;
-        const envelope = Math.exp(-seconds / (profile.decay * 0.34));
-        noiseData[i] = previousNoise * envelope;
-      }
-      const strike = audioContext.createBufferSource();
-      strike.buffer = noiseBuffer;
-      // 不完全諧和的寬頻模態，形成木魚的中空「啵」聲而非清晰音高。
-      [
-        [1, 0.58, 2.2], [1.53, 0.28, 2.7], [2.12, 0.11, 2.1]
-      ].forEach(([ratio, level, q]) => {
-        const cavity = audioContext.createBiquadFilter();
-        const cavityGain = audioContext.createGain();
-        cavity.type = 'bandpass';
-        cavity.frequency.value = profile.base * ratio;
-        cavity.Q.value = q;
-        cavityGain.gain.value = level * profile.brightness;
-        strike.connect(cavity).connect(cavityGain).connect(woodInput);
-      });
-      // 柔軟槌頭仍保留一點短促接觸聲，讓快速連打保持清楚。
-      const contactFilter = audioContext.createBiquadFilter();
-      const contactGain = audioContext.createGain();
-      contactFilter.type = 'lowpass';
-      contactFilter.frequency.value = 1850 * profile.brightness;
-      contactGain.gain.value = 0.085 * profile.brightness;
-      strike.connect(contactFilter).connect(contactGain).connect(woodInput);
-      strike.start(now);
-      strike.stop(now + profile.decay + 0.035);
-    } catch {}
   }
 
   function playTempleBell() {
@@ -326,14 +292,18 @@
     try { navigator.vibrate?.(18); } catch {}
   }
 
+  function restartAnimation(element, className) {
+    element.classList.remove(className);
+    element.getAnimations?.().forEach((animation) => animation.cancel());
+    element.classList.add(className);
+  }
+
   function effects() {
     const ring = document.createElement('div');
     ring.className = 'ring';
     ui.scene.appendChild(ring);
     setTimeout(() => ring.remove(), 780);
-    ui.dong.classList.remove('show');
-    void ui.dong.offsetWidth;
-    ui.dong.classList.add('show');
+    restartAnimation(ui.dong, 'show');
     const particleCount = currentMode() === 'auto' ? 5 : 8;
     for (let index = 0; index < particleCount; index += 1) {
       const particle = document.createElement('div');
@@ -353,16 +323,13 @@
       showToast(paused ? '請先繼續修行' : '請先按「開始修行」');
       return;
     }
+    // 聲音優先排程，避免手機在重排動畫版面後才開始播放。
+    playSound();
     count += 1;
     merit += currentMode() === 'auto' && Number(ui.speed.value) <= 460 ? 2 : 1;
-    ui.wrap.classList.remove('hit');
-    ui.mallet.classList.remove('hit');
-    ui.impact.classList.remove('show');
-    void ui.wrap.offsetWidth;
-    ui.wrap.classList.add('hit');
-    ui.mallet.classList.add('hit');
-    ui.impact.classList.add('show');
-    playSound();
+    restartAnimation(ui.wrap, 'hit');
+    restartAnimation(ui.mallet, 'hit');
+    restartAnimation(ui.impact, 'show');
     haptic();
     effects();
     updateStats();
@@ -396,9 +363,23 @@
     startAutoIfNeeded();
   }
 
-  function startPractice() {
-    if (running || paused) return;
+  async function startPractice() {
+    if (running || paused || audioPreparing) return;
+    audioPreparing = true;
+    ui.start.disabled = true;
+    ui.status.textContent = '正在準備低延遲木魚音效…';
     unlockAudio();
+    try {
+      await woodSampleLoading;
+      if (!muted) await audioContext.resume();
+    } catch {
+      audioPreparing = false;
+      ui.start.disabled = false;
+      ui.status.textContent = '音效載入失敗，請確認網路後重新整理';
+      showToast('木魚音效載入失敗');
+      return;
+    }
+    audioPreparing = false;
     running = true;
     startedAt = Date.now();
     accumulatedMs = 0;
@@ -481,8 +462,19 @@
   ui.start.addEventListener('click', startPractice);
   ui.pause.addEventListener('click', togglePause);
   ui.end.addEventListener('click', endPractice);
-  ui.hit.addEventListener('click', hitWoodfish);
-  ui.scene.addEventListener('click', hitWoodfish);
+  function bindImmediateHit(element) {
+    element.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      event.preventDefault();
+      hitWoodfish();
+    });
+    // 保留鍵盤啟動按鈕時產生的無座標 click。
+    element.addEventListener('click', (event) => {
+      if (event.detail === 0) hitWoodfish();
+    });
+  }
+  bindImmediateHit(ui.hit);
+  bindImmediateHit(ui.scene);
   ui.scene.addEventListener('keydown', (event) => {
     if (event.code === 'Enter') { event.preventDefault(); hitWoodfish(); }
   });
