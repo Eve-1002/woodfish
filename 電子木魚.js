@@ -15,6 +15,9 @@
   };
 
   const SETTINGS_KEY = 'muyu-user-settings-v2';
+  // CC0: "Mokugyo.wav" by jonopodmore, Freesound sound 607215.
+  const woodfishSample = new Audio('woodfish.mp3');
+  woodfishSample.preload = 'auto';
   const sayings = ['功德無量', '身心自在', '吉祥平安', '一念清淨', '心誠則靈', '福慧雙修', '無憂無懼'];
   const achievements = [['初入佛門', 10], ['一百零八功德圓滿', 108], ['虔誠居士', 500], ['禪修達人', 1000], ['木魚宗師', 10000]];
   let running = false;
@@ -200,39 +203,69 @@
 
   function playSound() {
     if (muted) return;
+    const sample = woodfishSample.cloneNode();
+    const toneProfiles = {
+      standard: { rate: 1, level: 1 },
+      crisp: { rate: 1.24, level: 0.92 },
+      deep: { rate: 0.74, level: 1 },
+      soft: { rate: 0.9, level: 0.58 }
+    };
+    const toneProfile = toneProfiles[ui.tone.value] || toneProfiles.standard;
+    sample.preservesPitch = false;
+    sample.mozPreservesPitch = false;
+    sample.webkitPreservesPitch = false;
+    sample.playbackRate = toneProfile.rate;
+    sample.volume = Math.min(1, Math.max(0, Number(ui.volume.value || 1) * toneProfile.level));
+    sample.play().catch(() => {});
+    return;
     try {
       unlockAudio();
       const now = audioContext.currentTime;
       const volume = Number(ui.volume.value || 1);
       const profiles = {
-        standard: [270, 100, 900], crisp: [350, 140, 1350],
-        deep: [225, 78, 720], soft: [245, 110, 650]
+        standard: { base: 430, decay: 0.105, brightness: 1 },
+        crisp: { base: 540, decay: 0.08, brightness: 1.12 },
+        deep: { base: 335, decay: 0.14, brightness: 0.88 },
+        soft: { base: 395, decay: 0.12, brightness: 0.62 }
       };
-      const [startFrequency, endFrequency, cutoff] = profiles[ui.tone.value] || profiles.standard;
+      const profile = profiles[ui.tone.value] || profiles.standard;
       masterGain.gain.setTargetAtTime(volume, now, 0.008);
-      const body = audioContext.createOscillator();
-      const click = audioContext.createOscillator();
-      const filter = audioContext.createBiquadFilter();
-      const bodyGain = audioContext.createGain();
-      const clickGain = audioContext.createGain();
-      body.type = 'triangle';
-      click.type = 'sine';
-      body.frequency.setValueAtTime(startFrequency, now);
-      body.frequency.exponentialRampToValueAtTime(endFrequency, now + 0.18);
-      click.frequency.setValueAtTime(startFrequency * 2.2, now);
-      click.frequency.exponentialRampToValueAtTime(Math.max(190, endFrequency * 1.8), now + 0.08);
-      filter.type = 'lowpass';
-      filter.frequency.value = cutoff;
-      bodyGain.gain.setValueAtTime(0.0001, now);
-      bodyGain.gain.exponentialRampToValueAtTime(0.7, now + 0.008);
-      bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
-      clickGain.gain.setValueAtTime(0.0001, now);
-      clickGain.gain.exponentialRampToValueAtTime(0.24, now + 0.004);
-      clickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-      body.connect(filter).connect(bodyGain).connect(woodInput);
-      click.connect(clickGain).connect(woodInput);
-      body.start(now); click.start(now);
-      body.stop(now + 0.26); click.stop(now + 0.09);
+
+      // 以包布槌的寬頻衝擊激發木製空腔；不使用持續振盪器，避免金屬感。
+      const noiseLength = Math.ceil(audioContext.sampleRate * (profile.decay + 0.035));
+      const noiseBuffer = audioContext.createBuffer(1, noiseLength, audioContext.sampleRate);
+      const noiseData = noiseBuffer.getChannelData(0);
+      let previousNoise = 0;
+      for (let i = 0; i < noiseLength; i += 1) {
+        const whiteNoise = Math.random() * 2 - 1;
+        previousNoise = previousNoise * 0.58 + whiteNoise * 0.42;
+        const seconds = i / audioContext.sampleRate;
+        const envelope = Math.exp(-seconds / (profile.decay * 0.34));
+        noiseData[i] = previousNoise * envelope;
+      }
+      const strike = audioContext.createBufferSource();
+      strike.buffer = noiseBuffer;
+      // 不完全諧和的寬頻模態，形成木魚的中空「啵」聲而非清晰音高。
+      [
+        [1, 0.58, 2.2], [1.53, 0.28, 2.7], [2.12, 0.11, 2.1]
+      ].forEach(([ratio, level, q]) => {
+        const cavity = audioContext.createBiquadFilter();
+        const cavityGain = audioContext.createGain();
+        cavity.type = 'bandpass';
+        cavity.frequency.value = profile.base * ratio;
+        cavity.Q.value = q;
+        cavityGain.gain.value = level * profile.brightness;
+        strike.connect(cavity).connect(cavityGain).connect(woodInput);
+      });
+      // 柔軟槌頭仍保留一點短促接觸聲，讓快速連打保持清楚。
+      const contactFilter = audioContext.createBiquadFilter();
+      const contactGain = audioContext.createGain();
+      contactFilter.type = 'lowpass';
+      contactFilter.frequency.value = 1850 * profile.brightness;
+      contactGain.gain.value = 0.085 * profile.brightness;
+      strike.connect(contactFilter).connect(contactGain).connect(woodInput);
+      strike.start(now);
+      strike.stop(now + profile.decay + 0.035);
     } catch {}
   }
 
