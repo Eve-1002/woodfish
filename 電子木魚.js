@@ -38,6 +38,8 @@
   let ambientInput = null;
   let masterGain = null;
   let ambientGain = null;
+  let woodSampleBuffer = null;
+  let woodSampleLoading = null;
   let ambientEnabled = false;
   let bellTimer = 0;
   let returnFocus = null;
@@ -194,6 +196,14 @@
     });
     woodInput.connect(woodCompressor).connect(masterGain).connect(woodLimiter).connect(audioContext.destination);
     ambientInput.connect(ambientCompressor).connect(ambientGain).connect(ambientLimiter).connect(audioContext.destination);
+    woodSampleLoading = fetch('woodfish.mp3?v=1')
+      .then((response) => {
+        if (!response.ok) throw new Error('木魚音效載入失敗');
+        return response.arrayBuffer();
+      })
+      .then((data) => audioContext.decodeAudioData(data))
+      .then((buffer) => { woodSampleBuffer = buffer; })
+      .catch(() => { woodSampleBuffer = null; });
   }
 
   function unlockAudio() {
@@ -203,7 +213,7 @@
 
   function playSound() {
     if (muted) return;
-    const sample = woodfishSample.cloneNode();
+    unlockAudio();
     const toneProfiles = {
       standard: { rate: 1, level: 1 },
       crisp: { rate: 1.24, level: 0.92 },
@@ -211,6 +221,19 @@
       soft: { rate: 0.9, level: 0.58 }
     };
     const toneProfile = toneProfiles[ui.tone.value] || toneProfiles.standard;
+    if (audioContext && woodSampleBuffer) {
+      const source = audioContext.createBufferSource();
+      const sampleGain = audioContext.createGain();
+      source.buffer = woodSampleBuffer;
+      source.playbackRate.value = toneProfile.rate;
+      sampleGain.gain.value = toneProfile.level;
+      masterGain.gain.setTargetAtTime(Number(ui.volume.value || 1), audioContext.currentTime, 0.004);
+      source.connect(sampleGain).connect(woodInput);
+      // 跳過 MP3 編碼器在檔頭加入的極短靜音，讓觸控與聲音貼齊。
+      source.start(audioContext.currentTime, Math.min(0.025, woodSampleBuffer.duration / 4));
+      return;
+    }
+    const sample = woodfishSample.cloneNode();
     sample.preservesPitch = false;
     sample.mozPreservesPitch = false;
     sample.webkitPreservesPitch = false;
