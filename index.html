@@ -91,6 +91,7 @@ button,select,input{touch-action:manipulation}
   .app{width:min(100%,96vw);padding:12px 0 24px}
   .top{margin-bottom:8px}.logo{width:38px;height:38px;border-radius:12px}h1{font-size:25px}
   .layout{gap:12px}.card{border-radius:26px}.stage{min-height:auto;padding:14px 12px 16px;gap:8px}
+  .stage:after{inset:7px;border-radius:22px}
   .status{min-height:36px}.statusText{font-size:13px;padding:8px 12px;text-align:center}
   .scene{width:100%;height:min(52vh,390px);min-height:310px}.asset{width:min(560px,100%);height:100%}
   .muyuImg{left:1%;top:7%;width:94%}.malletImg{right:3%;top:1%;width:21%}
@@ -98,17 +99,17 @@ button,select,input{touch-action:manipulation}
   .stageShortcut{width:100%;max-width:100%!important;border-radius:16px!important;padding:7px 9px!important}
   .stageShortcut .keyCap,.stageShortcut .divider{display:none}.stageShortcut .shortcutTitle{width:auto!important;margin:0!important}.stageShortcut span:not(.shortcutTitle){display:none}
   .stageShortcut::after{content:'點木魚即可敲擊';color:rgba(255,244,220,.76)}
-  .stats{gap:8px}.stat{padding:10px 7px;border-radius:17px}.label{font-size:11px}.value{font-size:22px}
+  .stats{width:100%;max-width:100%;min-width:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat{min-width:0;padding:10px 7px;border-radius:17px;overflow:hidden}.label{font-size:11px}.value{font-size:22px}
   .panel{padding:14px;gap:10px}.panelHeader{align-items:center}.panel h2{font-size:21px}.panelSub{display:none}
-  .quickActions{grid-template-columns:1fr 1fr}.primaryAction{grid-column:1/-1}.quickActions button{min-height:46px}
-  .box{padding:13px;border-radius:18px}.achievementsCard{max-height:none}
+  .quickActions{width:100%;max-width:100%;min-width:0;grid-template-columns:repeat(2,minmax(0,1fr))}.primaryAction{grid-column:1/-1}.quickActions button{min-width:0;max-width:100%;min-height:46px}
+  .box{width:100%;max-width:100%;min-width:0;padding:13px;border-radius:18px}.achievementsCard{max-height:none}
   .modal{padding:12px}.summary{padding:20px 15px;border-radius:24px}.summaryGrid{gap:8px}
 }
 @media(max-width:390px){.scene{height:330px;min-height:290px}.muyuImg{top:10%}.stats{grid-template-columns:repeat(2,1fr)}.quickActions{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}.smoke{display:none}}
 .modal[aria-hidden="true"]{display:none}
 .soundHint{margin-top:8px}
-@media(max-width:660px){.soundHint{font-size:11px}.quickActions{grid-template-columns:1fr 1fr}.quickActions .primaryAction{grid-column:1/-1}}
+@media(max-width:660px){.soundHint{font-size:11px}.quickActions{grid-template-columns:repeat(2,minmax(0,1fr))}.quickActions .primaryAction{grid-column:1/-1}}
 .rangeRow{display:flex;align-items:center;gap:12px;margin-top:12px}.rangeRow input[type="range"]{flex:1;min-width:0;accent-color:#ffd369}.rangeValue{min-width:48px;text-align:right;color:var(--gold2);font-weight:900;font-size:13px}.ambientControls{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,225,145,.12)}.ambientControls button{margin-bottom:8px}.achievementUnlock{position:fixed;z-index:90;left:50%;top:18%;width:min(420px,88vw);padding:20px 24px;text-align:center;border-radius:24px;border:1px solid rgba(255,225,145,.52);background:linear-gradient(145deg,rgba(72,38,14,.97),rgba(25,12,6,.98));box-shadow:0 24px 70px rgba(0,0,0,.58),0 0 40px rgba(255,211,105,.22);color:var(--gold2);opacity:0;pointer-events:none;transform:translate(-50%,-28px) scale(.82)}.achievementUnlock.show{animation:achievementPop 2.6s cubic-bezier(.2,1,.3,1) forwards}.achievementIcon{font-size:42px}.achievementTitle{font-size:13px;letter-spacing:.15em;color:var(--muted);margin-top:4px}.achievementName{font-size:24px;font-weight:1000;margin-top:6px}@keyframes achievementPop{0%{opacity:0;transform:translate(-50%,-28px) scale(.82)}14%,72%{opacity:1;transform:translate(-50%,0) scale(1)}86%{opacity:1;transform:translate(-50%,0) scale(.98)}100%{opacity:0;transform:translate(-50%,-18px) scale(.94)}}@media(prefers-reduced-motion:reduce){.achievementUnlock.show{animation-duration:1.4s!important}}
 
 </style>
@@ -228,5 +229,5 @@ button,select,input{touch-action:manipulation}
   };
 })();
 </script>
-<script src="電子木魚.js?v=10"></script>
+<script src="電子木魚.js?v=11"></script>
 </body></html>
